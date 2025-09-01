@@ -38,11 +38,13 @@ func main() {
 		log.Fatalf("Redis connect failed: %v", err)
 	}
 	fmt.Println("Connected to Redis")
-
+	// go jobs.ManageJobs(jobChannel)
 	http.HandleFunc("/auth", func(w http.ResponseWriter, r *http.Request) { handlers.Auth(w, r, redisClient) })
 	http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) { handlers.Callback(w, r, redisClient, jobChannel) })
+	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) { handlers.Test(w, r, redisClient) })
 	err = http.ListenAndServe(":8888", nil)
 	if err != nil {
 		log.Println(err)
 	}
+	defer redisClient.Del(ctx, "channels")
 }

@@ -87,8 +87,10 @@ func Callback(w http.ResponseWriter, r *http.Request, redisClient *redis.Client,
 	}
 	redisClient.Set(ctx, "access_token", accessToken.AccessToken, time.Duration(accessToken.ExpiresIn)*time.Second)
 	if accessToken.RefreshExpiresIn < 0 {
+		log.Println("Here")
 		redisClient.Set(ctx, "refresh_token", accessToken.RefreshToken, time.Duration(accessToken.RefreshExpiresIn)*time.Second)
 	} else {
+		log.Println("Not here")
 		redisClient.Set(ctx, "refresh_token", accessToken.RefreshToken, 0)
 	}
 	jobChan <- accessToken
