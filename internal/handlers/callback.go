@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -93,9 +92,8 @@ func Callback(w http.ResponseWriter, r *http.Request, redisClient *redis.Client,
 		log.Println("Not here")
 		redisClient.Set(ctx, "refresh_token", accessToken.RefreshToken, 0)
 	}
-	jobChan <- accessToken
 	log.Println("access_token:", accessToken.AccessToken)
-	fmt.Fprintln(w, "Success!")
+	http.Redirect(w, r, "/backfill", http.StatusPermanentRedirect)
 }
 
 type clientInfo struct {
