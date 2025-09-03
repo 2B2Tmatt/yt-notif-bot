@@ -7,7 +7,9 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
+	jobs "yt-notif/internal/manager"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -45,19 +47,6 @@ type Resource struct {
 	ChannelID string `json:"channelId"`
 }
 
-type Uploads struct {
-	UploadItems []UploadItem `json:"items"`
-}
-
-type UploadItem struct {
-	UploadDetails UploadDetail `json:"contentDetails"`
-}
-
-type UploadDetail struct {
-	VideoID          string    `json:"videoId"`
-	VideoPublishedAt time.Time `json:"videoPublishedAt"`
-}
-
 func StoreAllChannelIDS(ctx context.Context, client http.Client, token string, URL string, redisClient *redis.Client) error {
 	req, err := http.NewRequest(http.MethodGet, URL, nil)
 	if err != nil {
@@ -69,6 +58,7 @@ func StoreAllChannelIDS(ctx context.Context, client http.Client, token string, U
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	var channelList ChannelList
 	json.NewDecoder(resp.Body).Decode(&channelList)
 	for _, Item := range channelList.Items {
@@ -103,6 +93,7 @@ func LoadPlaylistsIntoMemory(ctx context.Context, client http.Client, token stri
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	var Playlists PlaylistList
 	json.NewDecoder(resp.Body).Decode(&Playlists)
 	for _, Playlist := range Playlists.Playlistitems {
@@ -121,35 +112,19 @@ func LoadUploadsIntoMemory(ctx context.Context, client http.Client, token string
 	cutoff := time.Now().Add(-time.Hour)
 	point := "https://www.googleapis.com/youtube/v3/playlistItems"
 	PlaylistSlice := redisClient.SMembers(ctx, "playlists").Val()
-	for _, playlist := range PlaylistSlice {
-		params := url.Values{}
-		params.Add("part", "contentDetails")
-		params.Add("maxResults", "50")
-		params.Add("playlistId", playlist)
-		encoded := params.Encode()
-		fullURL := fmt.Sprintf("%s?%s", point, encoded)
-		req, err := http.NewRequest(http.MethodGet, fullURL, nil)
-		if err != nil {
-			return err
-		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-		req.Header.Set("Accept", "application/json")
-		resp, err := client.Do(req)
-		if err != nil {
-			return err
-		}
-		var uploads Uploads
-		json.NewDecoder(resp.Body).Decode(&uploads)
-		for _, upload := range uploads.UploadItems {
-			if upload.UploadDetails.VideoPublishedAt.After(cutoff) {
-				redisClient.ZAdd(ctx, "uploads", redis.Z{Member: upload.UploadDetails.VideoID, Score: float64(upload.UploadDetails.VideoPublishedAt.Unix())})
-				redisClient.Set(ctx, upload.UploadDetails.VideoID, true, upload.UploadDetails.VideoPublishedAt.Sub(cutoff)*time.Second)
-				log.Println("Upload Added:", upload.UploadDetails.VideoID)
-			} else {
-				break
-			}
-		}
+	var wg sync.WaitGroup
+	UploadJobChan := make(chan jobs.UploadJob, 8)
+	numWorkers := 8
+	wg.Add(numWorkers)
+	for i := range numWorkers {
+		go jobs.UploadWorker(i, UploadJobChan, &wg)
 	}
+	for _, playlist := range PlaylistSlice {
+		uploadJob := jobs.UploadJob{Ctx: ctx, Client: &client, Token: token, RedisClient: redisClient, Cutoff: cutoff, Playlist: playlist, Point: point}
+		UploadJobChan <- uploadJob
+	}
+	close(UploadJobChan)
+	wg.Wait()
 	log.Println("All uploads backfilled")
 	return nil
 }
