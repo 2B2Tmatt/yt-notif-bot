@@ -23,8 +23,20 @@ func Backfill(w http.ResponseWriter, r *http.Request, redisClient *redis.Client)
 	fullURL := fmt.Sprintf("%s?%s", point, encoded)
 	ctx := context.Background()
 	token := redisClient.Get(ctx, "access_token").Val()
-	yt.StoreAllChannelIDS(ctx, client, token, fullURL, redisClient)
-	yt.LoadPlaylistsIntoMemory(ctx, client, token, redisClient)
-	yt.LoadUploadsIntoMemory(ctx, client, token, redisClient)
+	err := yt.StoreAllChannelIDS(ctx, client, token, fullURL, redisClient)
+	if err != nil {
+		log.Println("Error storing channelIDs")
+		return
+	}
+	err = yt.LoadPlaylistsIntoMemory(ctx, client, token, redisClient)
+	if err != nil {
+		log.Println("Error storing playlists")
+		return
+	}
+	err = yt.LoadUploadsIntoMemory(ctx, client, token, redisClient)
+	if err != nil {
+		log.Println("Error storing uploads")
+		return
+	}
 	log.Println("Backfill Complete")
 }

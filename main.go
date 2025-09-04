@@ -43,6 +43,7 @@ func main() {
 	http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) { handlers.Callback(w, r, redisClient, jobChannel) })
 	http.HandleFunc("/backfill", func(w http.ResponseWriter, r *http.Request) { handlers.Backfill(w, r, redisClient) })
 	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) { handlers.Test(w, r, redisClient) })
+	http.HandleFunc("/webhook", func(w http.ResponseWriter, r *http.Request) { handlers.Webhook(w, r, redisClient) })
 	go yt.Sweeper(ctx, redisClient)
 	err = http.ListenAndServe(":8888", nil)
 	if err != nil {
