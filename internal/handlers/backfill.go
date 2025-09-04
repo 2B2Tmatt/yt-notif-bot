@@ -12,7 +12,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func Backfill(w http.ResponseWriter, r *http.Request, redisClient *redis.Client) {
+func Backfill(w http.ResponseWriter, r *http.Request, redisClient *redis.Client, tokenChan chan string) {
 	params := url.Values{}
 	point := "https://www.googleapis.com/youtube/v3/subscriptions"
 	params.Add("part", "snippet")
@@ -33,6 +33,7 @@ func Backfill(w http.ResponseWriter, r *http.Request, redisClient *redis.Client)
 		log.Println("Error storing playlists")
 		return
 	}
+	tokenChan <- token
 	err = yt.LoadUploadsIntoMemory(ctx, client, token, redisClient)
 	if err != nil {
 		log.Println("Error storing uploads")

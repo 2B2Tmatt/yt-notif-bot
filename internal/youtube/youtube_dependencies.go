@@ -103,7 +103,6 @@ func LoadPlaylistsIntoMemory(ctx context.Context, client http.Client, token stri
 			log.Println("Error on SAdd playlist", Playlist.ContentDetails.RelatedPlaylists.Uploads)
 		}
 	}
-	redisClient.Expire(ctx, "playlists", time.Second*100)
 	log.Println("Playlist store completed at", time.Now())
 	return nil
 }
@@ -125,6 +124,5 @@ func LoadUploadsIntoMemory(ctx context.Context, client http.Client, token string
 	}
 	close(UploadJobChan)
 	wg.Wait()
-	log.Println("All uploads backfilled")
 	return nil
 }

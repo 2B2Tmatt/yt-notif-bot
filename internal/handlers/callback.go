@@ -53,6 +53,7 @@ func Callback(w http.ResponseWriter, r *http.Request, redisClient *redis.Client,
 	json.Unmarshal(b, &secrets)
 	code := r.URL.Query().Get("code")
 	client := &http.Client{Timeout: 10 * time.Second}
+	defer client.CloseIdleConnections()
 	bodyData := url.Values{
 		"grant_type":    []string{"authorization_code"},
 		"code":          []string{code},
